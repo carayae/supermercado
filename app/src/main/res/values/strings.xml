@@ -2,4 +2,7 @@
     <string name="app_name">supermercado</string>
     <string name="no_productos">No hay productos que mostrar</string>
     <string name="crear">Crear</string>
+    <string name="limon">Limon</string>
+    <string name="tomate">Tomate</string>
+    <string name="lechuga">Lechuga</string>
 </resources>

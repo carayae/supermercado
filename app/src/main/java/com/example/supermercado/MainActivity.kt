@@ -45,9 +45,9 @@ class MainActivity : ComponentActivity() {
             val productoDao = AppDataBase.getInstance(this@MainActivity).productoDao()
             val cantidadRegistros = productoDao.contar()
             if (cantidadRegistros < 1) {
-                productoDao.insertarProducto(Producto(0, "limon", false))
-                productoDao.insertarProducto(Producto(0, "tomate", true))
-                productoDao.insertarProducto(Producto(0, "lechuga", false))
+                productoDao.insertarProducto(Producto(0, resources.getString(R.string.limon), false))
+                productoDao.insertarProducto(Producto(0, resources.getString(R.string.tomate), true))
+                productoDao.insertarProducto(Producto(0, resources.getString(R.string.lechuga), false))
             }
         }
 

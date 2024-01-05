@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">supermercado</string>
     <string name="no_productos">There are no products to show</string>
     <string name="crear">Create</string>
+    <string name="limon">Lemon</string>
+    <string name="tomate">tomato</string>
+    <string name="lechuga">Lettuce</string>
 
 </resources>
