@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">supermercado</string>
+    <string name="no_productos">No hay productos que mostrar</string>
+    <string name="crear">Crear</string>
+</resources>
