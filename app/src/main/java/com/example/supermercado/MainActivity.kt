@@ -1,34 +1,45 @@
 package com.example.supermercado
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.unit.sp
 import com.example.supermercado.db.AppDataBase
 import com.example.supermercado.db.Producto
 import kotlinx.coroutines.Dispatchers
@@ -38,120 +49,175 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        //resources.getString(R.string.no_productos)
-        lifecycleScope.launch( Dispatchers.IO ) {
-
-            val productoDao = AppDataBase.getInstance(this@MainActivity).productoDao()
-            val cantidadRegistros = productoDao.contar()
-            if (cantidadRegistros < 1) {
-                productoDao.insertarProducto(Producto(0, resources.getString(R.string.limon), false))
-                productoDao.insertarProducto(Producto(0, resources.getString(R.string.tomate), true))
-                productoDao.insertarProducto(Producto(0, resources.getString(R.string.lechuga), false))
-            }
-        }
-
         setContent {
-            ListarPorductosUI()
+            AppProductosUI()
         }
     }
 }
 
+enum class Accion {
+    LISTAR, CREAR, EDITAR
+}
+
 @Composable
-fun ListarPorductosUI(){
+fun AppProductosUI() {
     val contexto = LocalContext.current
-    val (productos, setProductos) = remember { mutableStateOf(emptyList<Producto>()) }
-
-    LaunchedEffect( productos ){
-
-        withContext(Dispatchers.IO){
-            val dao = AppDataBase.getInstance(contexto).productoDao()
-            setProductos(dao.getAllProductos())
+    val (productos, setProductos) = remember{ mutableStateOf(
+        emptyList<Producto>() ) }
+    val (seleccion, setSeleccion) = remember{
+        mutableStateOf<Producto?>(null) }
+    val (accion, setAccion) = remember{
+        mutableStateOf(Accion.LISTAR) }
+    LaunchedEffect(productos) {
+        withContext(Dispatchers.IO) {
+            val db = AppDataBase.getInstance( contexto )
+            setProductos( db.productoDao().getAllProductos() )
+            Log.v("AppProductosUI", "LaunchedEffect()")
         }
-
     }
-    
-    LazyColumn(
-        modifier = Modifier.fillMaxSize()
-    ){
-        items(productos){producto ->
-            productoItemUI(producto){
-
-                setProductos(emptyList<Producto>())
+    val onSave = {
+        setAccion(Accion.LISTAR)
+        setProductos(emptyList())
+    }
+    when(accion) {
+        Accion.CREAR -> ProductoFormUI(null, onSave)
+        Accion.EDITAR -> ProductoFormUI(seleccion, onSave)
+        else -> ProductosListadoUI(
+            productos,
+            onAdd = { setAccion( Accion.CREAR ) },
+            onEdit = { producto ->
+                setSeleccion(producto)
+                setAccion( Accion.EDITAR)
             }
+        )
+    }
+}
 
+@Composable
+fun ProductosListadoUI(productos:List<Producto>, onAdd:() -> Unit = {},
+                       onEdit:(p:Producto) -> Unit = {}) {
+    Scaffold(
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { onAdd() },
+                icon = {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = "agregar"
+                    )
+                },
+                text = { Text("Agregar") }
+            )
+        }
+    ) { contentPadding ->
+        if( productos.isNotEmpty() ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(productos) { producto ->
+                    ProductoItemUI(producto) {
+                        onEdit(producto)
+                    }
+                }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(contentPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No hay Productos guardados.")
+            }
         }
     }
 }
 
 @Composable
-fun productoItemUI(producto: Producto, onSave:()-> Unit = {}){
-
-    val contexto = LocalContext.current
-    val alcanceCorrutina = rememberCoroutineScope()
-
+fun ProductoItemUI(producto: Producto, onClick:() -> Unit = {}) {
     Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 20.dp, horizontal = 20.dp)
-    ){
-        if (!producto.comprado){
-            Icon(
-                Icons.Filled.ShoppingCart,
-                contentDescription = "Producto No comprado",
-                modifier = Modifier.clickable{
-                    alcanceCorrutina.launch(Dispatchers.IO) {
-                        val dao = AppDataBase.getInstance(contexto).productoDao()
-                        producto.comprado = true
-                        dao.actualizarProducto(producto)
-                        onSave()
-                    }
-                }
-            )
-        }else{
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = "Producto Comprado",
-                modifier = Modifier.clickable{
-                    alcanceCorrutina.launch(Dispatchers.IO) {
-                        val dao = AppDataBase.getInstance(contexto).productoDao()
-                        producto.comprado = false
-                        dao.actualizarProducto(producto)
-                        onSave()
-                    }
-                }
-            )
-        }
+            .clickable { onClick() }
+    ) {
         Spacer(modifier = Modifier.width(20.dp))
-        Text(
-            text = producto.nombre,
-            modifier = Modifier.weight(2f)
+        Image(
+            painter = painterResource(id = R.drawable.producto),
+            contentDescription = "Imagen Producto"
         )
-
-        Icon(
-            Icons.Filled.Delete,
-            contentDescription = "Producto Eliminado",
-            modifier = Modifier.clickable{
-                alcanceCorrutina.launch(Dispatchers.IO) {
-                    val dao = AppDataBase.getInstance(contexto).productoDao()
-                    dao.eliminarProducto(producto)
-                    onSave()
-                }
-            }
-        )
+        Spacer(modifier = Modifier.width(20.dp))
+        Column() {
+            Text(producto.nombre, fontWeight = FontWeight.ExtraBold,
+                fontSize = 20.sp)
+        }
     }
 }
 
-@Preview(showBackground = true)
 @Composable
-fun ProductoItemPreview(){
-    val producto = Producto(1, "brocoli", true)
-    productoItemUI(producto)
-}
+fun ProductoFormUI(p:Producto?, onSave:()->Unit = {}){
+    val contexto = LocalContext.current
+    val (nombre, setNombre) = remember { mutableStateOf(
+        p?.nombre ?: "" ) }
 
-@Preview(showBackground = true)
-@Composable
-fun ProductoItemPreview2(){
-    val producto = Producto(2   , "coliflor", false)
-    productoItemUI(producto)
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    Scaffold(
+        snackbarHost = { SnackbarHost( snackbarHostState) }
+    ) {paddingValues ->
+        Column(
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.producto),
+                contentDescription = "Imagen de Producto")
+            TextField(
+                value = nombre,
+                onValueChange = { setNombre(it) },
+                label = {Text("Nombre")}
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Button(onClick = {
+                coroutineScope.launch(Dispatchers.IO) {
+                    val dao = AppDataBase.getInstance( contexto
+                    ).productoDao()
+                    val producto = Producto(p?.id ?: 0, nombre, comprado = false)
+                    if( producto.id > 0) {
+                        dao.actualizarProducto(producto)
+                    } else {
+                        dao.insertarProducto(producto)
+                    }
+                    snackbarHostState.showSnackbar("Se ha guardado a ${producto.nombre}")
+                    onSave()
+                }
+            }) {
+                var textoGuardar = "Crear"
+                if(p?.id ?:0 > 0) {
+                    textoGuardar = "Guardar"
+                }
+                Text(textoGuardar)
+            }
+            if(p?.id ?:0 > 0) {
+                Button(onClick = {
+
+                    coroutineScope.launch(Dispatchers.IO) {
+                        val dao =
+                            AppDataBase.getInstance(contexto).productoDao()
+                        snackbarHostState.showSnackbar("Eliminando el producto de ${p?.nombre}")
+                        if( p != null) {
+                            dao.eliminarProducto(p)
+                        }
+                        onSave()
+                    }
+                }) {
+                    Text("Eliminar")
+                }
+            }
+        }
+    }
 }
